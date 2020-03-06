@@ -1,10 +1,10 @@
 package io.cucumber.core.plugin;
 
 import gherkin.deps.com.google.gson.JsonParser;
-import io.cucumber.plugin.event.Result;
-import io.cucumber.core.gherkin.Feature;
 import io.cucumber.core.feature.TestFeatureParser;
+import io.cucumber.core.gherkin.Feature;
 import io.cucumber.core.runner.TestHelper;
+import io.cucumber.plugin.event.Result;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -13,10 +13,10 @@ import org.mockito.stubbing.Answer;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.URL;
 import java.time.Duration;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
@@ -28,6 +28,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static io.cucumber.core.plugin.TempDir.createTempDirectory;
 import static io.cucumber.core.runner.TestHelper.createEmbedHookAction;
 import static io.cucumber.core.runner.TestHelper.createWriteHookAction;
 import static io.cucumber.core.runner.TestHelper.result;
@@ -54,18 +55,18 @@ class HTMLFormatterTest {
     private final List<Answer<Object>> hookActions = new ArrayList<>();
     private Duration stepDuration = null;
 
-    private URL outputDir;
+    private File outputDir;
 
     private void writeReport() throws Throwable {
-        outputDir = TempDir.createTempDirectory().toURI().toURL();
+        outputDir = createTempDirectory();
         runFeaturesWithFormatter(outputDir);
     }
 
     @Test
     void writes_index_html() throws Throwable {
         writeReport();
-        URL indexHtml = new URL(outputDir, "index.html");
-        Document document = Jsoup.parse(new File(indexHtml.getFile()), UTF_8.name());
+        File indexHtml = new File(outputDir, "index.html");
+        Document document = Jsoup.parse(indexHtml, UTF_8.name());
         Element reportElement = document.body().getElementsByClass("cucumber-report").first();
         assertThat(reportElement.text(), is(equalTo("")));
     }
@@ -125,7 +126,7 @@ class HTMLFormatterTest {
     }
 
     @Test
-    void should_handle_a_single_scenario() {
+    void should_handle_a_single_scenario() throws IOException {
         Feature feature = TestFeatureParser.parse("path/test.feature", "" +
             "Feature: feature name\n" +
             "  Scenario: scenario name\n" +
@@ -176,7 +177,7 @@ class HTMLFormatterTest {
     }
 
     @Test
-    void should_handle_backgound() {
+    void should_handle_backgound() throws IOException {
         Feature feature = TestFeatureParser.parse("path/test.feature", "" +
             "Feature: feature name\n" +
             "  Background: background name\n" +
@@ -261,7 +262,7 @@ class HTMLFormatterTest {
     }
 
     @Test
-    void should_handle_scenario_outline() {
+    void should_handle_scenario_outline() throws IOException {
         Feature feature = TestFeatureParser.parse("path/test.feature", "" +
             "Feature: feature name\n" +
             "  Scenario Outline: outline name\n" +
@@ -378,7 +379,7 @@ class HTMLFormatterTest {
     }
 
     @Test
-    void should_handle_before_hooks() {
+    void should_handle_before_hooks() throws IOException {
         Feature feature = TestFeatureParser.parse("path/test.feature", "" +
             "Feature: feature name\n" +
             "  Scenario: scenario name\n" +
@@ -415,7 +416,7 @@ class HTMLFormatterTest {
     }
 
     @Test
-    void should_handle_after_hooks() {
+    void should_handle_after_hooks() throws IOException {
         Feature feature = TestFeatureParser.parse("path/test.feature", "" +
             "Feature: feature name\n" +
             "  Scenario: scenario name\n" +
@@ -452,7 +453,7 @@ class HTMLFormatterTest {
     }
 
     @Test
-    void should_handle_after_step_hooks() {
+    void should_handle_after_step_hooks() throws IOException {
         Feature feature = TestFeatureParser.parse("path/test.feature", "" +
             "Feature: feature name\n" +
             "  Scenario: scenario name\n" +
@@ -513,7 +514,7 @@ class HTMLFormatterTest {
     }
 
     @Test
-    void should_handle_output_from_before_hooks() {
+    void should_handle_output_from_before_hooks() throws IOException {
         Feature feature = TestFeatureParser.parse("path/test.feature", "" +
             "Feature: feature name\n" +
             "  Scenario: scenario name\n" +
@@ -552,7 +553,7 @@ class HTMLFormatterTest {
     }
 
     @Test
-    void should_handle_output_from_after_hooks() {
+    void should_handle_output_from_after_hooks() throws IOException {
         Feature feature = TestFeatureParser.parse("path/test.feature", "" +
             "Feature: feature name\n" +
             "  Scenario: scenario name\n" +
@@ -591,7 +592,7 @@ class HTMLFormatterTest {
     }
 
     @Test
-    void should_handle_output_from_after_step_hooks() {
+    void should_handle_output_from_after_step_hooks() throws IOException {
         Feature feature = TestFeatureParser.parse("path/test.feature", "" +
             "Feature: feature name\n" +
             "  Scenario: scenario name\n" +
@@ -647,7 +648,7 @@ class HTMLFormatterTest {
     }
 
     @Test
-    void should_handle_text_embeddings_from_before_hooks() {
+    void should_handle_text_embeddings_from_before_hooks() throws IOException {
         Feature feature = TestFeatureParser.parse("path/test.feature", "" +
             "Feature: feature name\n" +
             "  Scenario: scenario name\n" +
@@ -686,7 +687,7 @@ class HTMLFormatterTest {
     }
 
     private String readReportJs() throws IOException {
-        InputStream reportJsStream = new URL(outputDir, "report.js").openStream();
+        InputStream reportJsStream = new FileInputStream(new File(outputDir, "report.js"));
         try (BufferedReader br = new BufferedReader(new InputStreamReader(reportJsStream, UTF_8))) {
             return br.lines().collect(Collectors.joining(System.lineSeparator()));
         }
@@ -751,7 +752,7 @@ class HTMLFormatterTest {
         }
     }
 
-    private void runFeaturesWithFormatter(URL outputDir) {
+    private void runFeaturesWithFormatter(File outputDir) {
         final HTMLFormatter f = new HTMLFormatter(outputDir);
         Feature feature = TestFeatureParser.parse("some/path/some.feature", "" +
             "Feature:\n" +
@@ -771,9 +772,9 @@ class HTMLFormatterTest {
         runFeaturesWithFormatter(f);
     }
 
-    private String runFeaturesWithFormatter() {
+    private String runFeaturesWithFormatter() throws IOException {
         final StringBuilder report = new StringBuilder();
-        final HTMLFormatter formatter = new HTMLFormatter(null, new NiceAppendable(report));
+        final HTMLFormatter formatter = new HTMLFormatter(createTempDirectory(), new NiceAppendable(report));
         runFeaturesWithFormatter(formatter);
         return report.toString();
     }

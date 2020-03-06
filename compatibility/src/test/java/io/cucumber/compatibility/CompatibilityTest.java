@@ -10,6 +10,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.UUID;
@@ -17,6 +18,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.nio.file.Files.readAllLines;
 import static java.time.Clock.fixed;
 import static java.time.Instant.ofEpochSecond;
@@ -41,7 +43,7 @@ public class CompatibilityTest {
                 .addGlue(testCase.getGlue())
                 .addFeature(testCase.getFeature())
                 .build())
-            .withAdditionalPlugins(new MessageFormatter(new FileOutputStream(output)))
+            .withAdditionalPlugins(new MessageFormatter(new OutputStreamWriter(new FileOutputStream(output), UTF_8)))
             .withEventBus(new TimeServiceEventBus(fixed(ofEpochSecond(0), UTC), idGenerator))
             .build()
             .run();
