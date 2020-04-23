@@ -24,6 +24,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 @API(status = API.Status.STABLE)
+@CreatedBy(GlueAdaptor.DefaultDataTableEntryTransformerDefinitionCreator.class)
 public @interface DefaultDataTableEntryTransformer {
     /**
      * Converts a data tables header headers to property names.

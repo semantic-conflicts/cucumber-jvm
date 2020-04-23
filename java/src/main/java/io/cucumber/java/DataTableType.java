@@ -25,6 +25,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 @API(status = API.Status.STABLE)
+@CreatedBy(GlueAdaptor.DataTableTypeDefinitionCreator.class)
 public @interface DataTableType {
 
     /**

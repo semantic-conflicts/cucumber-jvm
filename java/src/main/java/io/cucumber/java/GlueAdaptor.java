@@ -1,9 +1,18 @@
 package io.cucumber.java;
 
+import io.cucumber.core.backend.DataTableTypeDefinition;
+import io.cucumber.core.backend.DefaultDataTableCellTransformerDefinition;
+import io.cucumber.core.backend.DefaultDataTableEntryTransformerDefinition;
+import io.cucumber.core.backend.DefaultParameterTransformerDefinition;
+import io.cucumber.core.backend.DocStringTypeDefinition;
 import io.cucumber.core.backend.Glue;
+import io.cucumber.core.backend.HookDefinition;
 import io.cucumber.core.backend.Lookup;
+import io.cucumber.core.backend.ParameterTypeDefinition;
+import io.cucumber.core.backend.StepDefinition;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 final class GlueAdaptor {
@@ -18,51 +27,146 @@ final class GlueAdaptor {
 
     void addDefinition(Method method, Annotation annotation) {
         Class<? extends Annotation> annotationType = annotation.annotationType();
+        Creator<? super Annotation, ?> instance = createInstance(annotationType);
+        Object definition = instance.create(lookup, method, annotation);
+
         if (annotationType.getAnnotation(StepDefinitionAnnotation.class) != null) {
-            String expression = expression(annotation);
-            glue.addStepDefinition(new JavaStepDefinition(method, expression, lookup));
+            glue.addStepDefinition((StepDefinition) definition);
         } else if (annotationType.equals(Before.class)) {
-            Before before = (Before) annotation;
-            String tagExpression = before.value();
-            glue.addBeforeHook(new JavaHookDefinition(method, tagExpression, before.order(), lookup));
+            //TODO: Hook defintiions need specific types to make this work
+            glue.addBeforeHook((HookDefinition) definition);
         } else if (annotationType.equals(After.class)) {
-            After after = (After) annotation;
-            String tagExpression = after.value();
-            glue.addAfterHook(new JavaHookDefinition(method, tagExpression, after.order(), lookup));
+            glue.addAfterHook((HookDefinition) definition);
         } else if (annotationType.equals(BeforeStep.class)) {
-            BeforeStep beforeStep = (BeforeStep) annotation;
-            String tagExpression = beforeStep.value();
-            glue.addBeforeStepHook(new JavaHookDefinition(method, tagExpression, beforeStep.order(), lookup));
+            glue.addBeforeStepHook((HookDefinition) definition);
         } else if (annotationType.equals(AfterStep.class)) {
-            AfterStep afterStep = (AfterStep) annotation;
-            String tagExpression = afterStep.value();
-            glue.addAfterStepHook(new JavaHookDefinition(method, tagExpression, afterStep.order(), lookup));
+            glue.addAfterStepHook((HookDefinition) definition);
         } else if (annotationType.equals(ParameterType.class)) {
-            ParameterType parameterType = (ParameterType) annotation;
-            String pattern = parameterType.value();
-            String name = parameterType.name();
-            boolean useForSnippets = parameterType.useForSnippets();
-            boolean preferForRegexMatch = parameterType.preferForRegexMatch();
-            boolean useRegexpMatchAsStrongTypeHint = parameterType.useRegexpMatchAsStrongTypeHint();
-            glue.addParameterType(new JavaParameterTypeDefinition(name, pattern, method, useForSnippets, preferForRegexMatch, useRegexpMatchAsStrongTypeHint, lookup));
+            glue.addParameterType((ParameterTypeDefinition) definition);
         } else if (annotationType.equals(DataTableType.class)) {
-            DataTableType dataTableType = (DataTableType) annotation;
-            glue.addDataTableType(new JavaDataTableTypeDefinition(method, lookup, dataTableType.replaceWithEmptyString()));
+            glue.addDataTableType((DataTableTypeDefinition) definition);
         } else if (annotationType.equals(DefaultParameterTransformer.class)) {
-            glue.addDefaultParameterTransformer(new JavaDefaultParameterTransformerDefinition(method, lookup));
+            glue.addDefaultParameterTransformer((DefaultParameterTransformerDefinition) definition);
         } else if (annotationType.equals(DefaultDataTableEntryTransformer.class)) {
-            DefaultDataTableEntryTransformer transformer = (DefaultDataTableEntryTransformer) annotation;
-            boolean headersToProperties = transformer.headersToProperties();
-            String[] replaceWithEmptyString = transformer.replaceWithEmptyString();
-            glue.addDefaultDataTableEntryTransformer(new JavaDefaultDataTableEntryTransformerDefinition(method, lookup, headersToProperties, replaceWithEmptyString));
+            glue.addDefaultDataTableEntryTransformer((DefaultDataTableEntryTransformerDefinition) definition);
         } else if (annotationType.equals(DefaultDataTableCellTransformer.class)) {
-            DefaultDataTableCellTransformer cellTransformer = (DefaultDataTableCellTransformer) annotation;
-            String[] emptyPatterns = cellTransformer.replaceWithEmptyString();
-            glue.addDefaultDataTableCellTransformer(new JavaDefaultDataTableCellTransformerDefinition(method, lookup, emptyPatterns));
-        } else if (annotationType.equals(DocStringType.class)){
-            DocStringType docStringType = (DocStringType) annotation;
-            String contentType = docStringType.contentType();
-            glue.addDocStringType(new JavaDocStringTypeDefinition(contentType, method, lookup));
+            glue.addDefaultDataTableCellTransformer((DefaultDataTableCellTransformerDefinition) definition);
+        } else if (annotationType.equals(DocStringType.class)) {
+            glue.addDocStringType((DocStringTypeDefinition) definition);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Creator<? super Annotation, ?> createInstance(Class<? extends Annotation> annotationType){
+        try {
+            // TODO: Scan up for this annotation
+            CreatedBy createdBy = annotationType.getAnnotation(CreatedBy.class);
+            Class<? extends Creator<?, ?>> creator = createdBy.value();
+            return (Creator<? super Annotation, ?>) creator.getDeclaredConstructor().newInstance();
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    static class DocStringTypeDefinitionCreator implements Creator<DocStringType, DocStringTypeDefinition> {
+
+        @Override
+        public DocStringTypeDefinition create(Lookup lookup, Method method, DocStringType annotation) {
+            String contentType = annotation.contentType();
+            return new JavaDocStringTypeDefinition(contentType, method, lookup);
+        }
+    }
+
+    static class DefaultDataTableCellTransformerDefinitionCreator implements Creator<DefaultDataTableCellTransformer, DefaultDataTableCellTransformerDefinition> {
+
+        @Override
+        public DefaultDataTableCellTransformerDefinition create(Lookup lookup, Method method, DefaultDataTableCellTransformer annotation) {
+            String[] emptyPatterns = annotation.replaceWithEmptyString();
+            return new JavaDefaultDataTableCellTransformerDefinition(method, lookup, emptyPatterns);
+        }
+    }
+
+    static class DefaultDataTableEntryTransformerDefinitionCreator implements Creator<DefaultDataTableEntryTransformer, DefaultDataTableEntryTransformerDefinition> {
+
+        @Override
+        public DefaultDataTableEntryTransformerDefinition create(Lookup lookup, Method method, DefaultDataTableEntryTransformer annotation) {
+            boolean headersToProperties = annotation.headersToProperties();
+            String[] replaceWithEmptyString = annotation.replaceWithEmptyString();
+            return new JavaDefaultDataTableEntryTransformerDefinition(method, lookup, headersToProperties, replaceWithEmptyString);
+        }
+    }
+
+    static class DefaultParameterTransformerDefinitionCreator implements Creator<DefaultParameterTransformer, DefaultParameterTransformerDefinition> {
+
+        @Override
+        public DefaultParameterTransformerDefinition create(Lookup lookup, Method method, DefaultParameterTransformer annotation) {
+            return new JavaDefaultParameterTransformerDefinition(method, lookup);
+        }
+    }
+
+    static class DataTableTypeDefinitionCreator implements Creator<DataTableType, DataTableTypeDefinition> {
+
+        @Override
+        public DataTableTypeDefinition create(Lookup lookup, Method method, DataTableType annotation) {
+            return new JavaDataTableTypeDefinition(method, lookup, annotation.replaceWithEmptyString());
+        }
+    }
+
+    static class ParameterTypeDefinitionCreator implements Creator<ParameterType, ParameterTypeDefinition> {
+
+        @Override
+        public ParameterTypeDefinition create(Lookup lookup, Method method, ParameterType annotation) {
+            String pattern = annotation.value();
+            String name = annotation.name();
+            boolean useForSnippets = annotation.useForSnippets();
+            boolean preferForRegexMatch = annotation.preferForRegexMatch();
+            boolean useRegexpMatchAsStrongTypeHint = annotation.useRegexpMatchAsStrongTypeHint();
+            return new JavaParameterTypeDefinition(name, pattern, method, useForSnippets, preferForRegexMatch, useRegexpMatchAsStrongTypeHint, lookup);
+        }
+    }
+
+    static class AfterStepHookDefinitionCreator implements Creator<AfterStep, HookDefinition> {
+
+        @Override
+        public HookDefinition create(Lookup lookup, Method method, AfterStep annotation) {
+            String tagExpression = annotation.value();
+            return new JavaHookDefinition(method, tagExpression, annotation.order(), lookup);
+        }
+    }
+
+    static class BeforeStepHookDefinitionCreator implements Creator<BeforeStep, HookDefinition> {
+
+        @Override
+        public HookDefinition create(Lookup lookup, Method method, BeforeStep annotation) {
+            String tagExpression = annotation.value();
+            return new JavaHookDefinition(method, tagExpression, annotation.order(), lookup);
+        }
+    }
+
+    static class AfterHookDefinitionCreator implements Creator<After, HookDefinition> {
+
+        @Override
+        public HookDefinition create(Lookup lookup, Method method, After annotation) {
+            String tagExpression = annotation.value();
+            return new JavaHookDefinition(method, tagExpression, annotation.order(), lookup);
+        }
+    }
+
+    static class BeforeHookDefinitionCreator implements Creator<Before, HookDefinition> {
+
+        @Override
+        public HookDefinition create(Lookup lookup, Method method, Before annotation) {
+            String tagExpression = annotation.value();
+            return new JavaHookDefinition(method, tagExpression, annotation.order(), lookup);
+        }
+    }
+
+    static class StepDefinitionCreator implements Creator<Annotation, StepDefinition> {
+
+        @Override
+        public StepDefinition create(Lookup lookup, Method method, Annotation annotation) {
+            String expression = expression(annotation);
+            return new JavaStepDefinition(method, expression, lookup);
         }
     }
 

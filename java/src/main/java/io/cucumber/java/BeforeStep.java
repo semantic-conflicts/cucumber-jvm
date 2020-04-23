@@ -13,6 +13,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 @API(status = API.Status.STABLE)
+@CreatedBy(GlueAdaptor.BeforeStepHookDefinitionCreator.class)
 public @interface BeforeStep {
     /**
      * Tag expression. If the expression applies to the current
